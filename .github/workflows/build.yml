@@ -1,0 +1,91 @@
+name: Build Sandboxie x64
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  Build_x64_Qt6:
+    runs-on: windows-2022
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup msbuild
+        uses: microsoft/setup-msbuild@v2
+
+      # ── Core Sandboxie (Win32 DLLs + x64 all + x64 driver) ──────────────
+
+      - name: Build Sandboxie x86 (DLLs & svc)
+        run: msbuild /t:build Sandboxie\SandboxDll.sln /p:Configuration="SbieRelease" /p:Platform=Win32 -maxcpucount:8
+
+      - name: Build Sandboxie x64 (all)
+        run: msbuild /t:build Sandboxie\Sandbox.sln /p:Configuration="SbieRelease" /p:Platform=x64 -maxcpucount:8
+
+      - name: Build Sandboxie x64 (drv)
+        run: msbuild /t:build Sandboxie\SandboxDrv.sln /p:Configuration="SbieRelease" /p:Platform=x64 -maxcpucount:8
+
+      # ── Qt 6 (downloaded from xanasoft/qt-builds releases) ───────────────
+
+      - name: Install Qt6 x64
+        shell: cmd
+        run: SandboxiePlus\install_qt.cmd x64 build_qt6
+
+      - name: Install Jom
+        shell: cmd
+        run: SandboxiePlus\install_jom.cmd
+
+      # ── SandboxiePlus (qmake) ────────────────────────────────────────────
+
+      - name: Build Sandboxie-Plus x64
+        shell: cmd
+        run: SandboxiePlus\qmake_plus.cmd x64 build_qt6
+
+      - name: Build SbieShell x64
+        run: msbuild /t:restore,build -p:RestorePackagesConfig=true SandboxiePlus\SbieShell\SbieShell.sln /p:Configuration="Release" /p:Platform=x64
+
+      # ── SandboxieTools ───────────────────────────────────────────────────
+
+      - name: Build Sandboxie-Tools x64
+        run: msbuild /t:build SandboxieTools\SandboxieTools.sln /p:Configuration="Release" /p:Platform=x64 -maxcpucount:8
+
+      # ── Package ──────────────────────────────────────────────────────────
+
+      - name: Add missing Qt languages
+        shell: cmd
+        run: Installer\fix_qt5_languages.cmd x64 build_qt6
+
+      - name: Get OpenSSL binaries
+        shell: cmd
+        run: Installer\get_openssl.cmd
+
+      - name: Get 7-Zip binaries
+        shell: cmd
+        run: Installer\get_7zip.cmd
+
+      - name: Merge build
+        shell: cmd
+        run: Installer\copy_build.cmd x64 build_qt6
+
+      - name: Collect installer assets
+        shell: cmd
+        run: Installer\get_assets.cmd
+
+      # ── Upload artifacts ─────────────────────────────────────────────────
+
+      - name: Upload Sandboxie x64
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sandboxie_x64
+          path: Installer/SbiePlus_x64/*
+          retention-days: 30
+
+      - name: Upload Assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: Assets
+          path: Installer/Assets/*
+          retention-days: 30
