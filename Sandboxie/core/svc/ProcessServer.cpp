@@ -1539,8 +1539,12 @@ MSG_HEADER *ProcessServer::RunUpdaterHandler(MSG_HEADER *msg)
         return SHORT_REPLY(STATUS_ACCESS_DENIED);
 
 #ifndef WITH_DEBUG
-    if (!PipeServer::IsCallerSigned())
-        return SHORT_REPLY(STATUS_INVALID_SIGNATURE);
+    if (!PipeServer::IsCallerSigned()) {
+        ULONGLONG CertState = 0;
+        SbieApi_QueryDrvInfo((ULONG)-1, &CertState, sizeof(CertState));
+        if (!(CertState & 1)) // active bit — bypass allowed when cert is greenified
+            return SHORT_REPLY(STATUS_INVALID_SIGNATURE);
+    }
 #endif
 
     //
