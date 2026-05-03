@@ -103,6 +103,11 @@ bool CAddonManager::LoadAddons()
 
 	QString AddonPath = theConf->GetConfigDir() + "/" ADDONS_FILE;
 	QString AddonStr = ReadFileAsString(AddonPath);
+
+	// Fall back to the bundled addons.json shipped alongside the application
+	if (AddonStr.isEmpty())
+		AddonStr = ReadFileAsString(QApplication::applicationDirPath() + "/" ADDONS_FILE);
+
 	QVariantMap Data = QJsonDocument::fromJson(AddonStr.toUtf8()).toVariant().toMap();
 	foreach(const QVariant vAddon, Data["list"].toList())
 		m_KnownAddons.append(CAddonPtr(new CAddon(vAddon.toMap())));
@@ -184,8 +189,12 @@ SB_PROGRESS CAddonManager::InstallAddon(const QString& Id)
 	if (!pAddon)
 		return SB_ERR(SB_OtherError, QVariantList() << tr("Add-on not found, please try updating the add-on list in the global settings!"));
 
+	// Use user-cached addons.json if present, otherwise fall back to bundled copy
+	QString srcAddons = theConf->GetConfigDir() + "/" ADDONS_FILE;
+	if (!QFile::exists(srcAddons))
+		srcAddons = QApplication::applicationDirPath() + "/" ADDONS_FILE;
 	QFile::remove(theGUI->m_pUpdater->GetUpdateDir(true) + "/" ADDONS_FILE);
-	QFile::copy(theConf->GetConfigDir() + "/" ADDONS_FILE, theGUI->m_pUpdater->GetUpdateDir(true) + "/" ADDONS_FILE);
+	QFile::copy(srcAddons, theGUI->m_pUpdater->GetUpdateDir(true) + "/" ADDONS_FILE);
 
 	QStringList Params;
 	Params.append("modify");
