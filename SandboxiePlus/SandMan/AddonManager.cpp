@@ -196,6 +196,15 @@ SB_PROGRESS CAddonManager::InstallAddon(const QString& Id)
 	QFile::remove(theGUI->m_pUpdater->GetUpdateDir(true) + "/" ADDONS_FILE);
 	QFile::copy(srcAddons, theGUI->m_pUpdater->GetUpdateDir(true) + "/" ADDONS_FILE);
 
+	// Pre-copy bundled addon files (shipped alongside the app) so DownloadUpdate skips network
+	QString bundledAddonDir = QApplication::applicationDirPath() + "/addons/" + pAddon->Id;
+	if (QDir(bundledAddonDir).exists()) {
+		QString destDir = theGUI->m_pUpdater->GetUpdateDir(true) + "/" + pAddon->Id;
+		QDir().mkpath(destDir);
+		foreach (const QFileInfo& fi, QDir(bundledAddonDir).entryInfoList(QDir::Files))
+			QFile::copy(fi.absoluteFilePath(), destDir + "/" + fi.fileName());
+	}
+
 	QStringList Params;
 	Params.append("modify");
 	Params.append("add:" + pAddon->Id);
