@@ -1112,9 +1112,11 @@ int InstallAddon(std::shared_ptr<SAddon> pAddon, const std::wstring& temp_dir, c
 		STARTUPINFO si = { sizeof(si), 0 };
 		PROCESS_INFORMATION pi = { 0 };
 		std::wstring installerPath = secure_dir + L"\\" + pAddon->Installer;
-		// .bat files cannot be launched directly by CreateProcessW; must go through cmd.exe
+		// .bat files cannot be launched directly by CreateProcessW; must go through cmd.exe.
+		// Pass "7" to skip the self-relaunch trick in ImDisk's install.bat (start /min detaches
+		// the real installer, causing UpdUtil to check the registry before it is written).
 		std::wstring cmdLine = (installerPath.size() >= 4 && _wcsicmp(installerPath.c_str() + installerPath.size() - 4, L".bat") == 0)
-			? (L"cmd.exe /c \"" + installerPath + L"\"")
+			? (L"cmd.exe /c \"" + installerPath + L"\" 7")
 			: installerPath;
 		// Set working directory to the installer's directory so relative paths (e.g. expand files.cab) resolve correctly
 		if (CreateProcessW(NULL, (wchar_t*)cmdLine.c_str(), NULL, NULL, FALSE, CREATE_UNICODE_ENVIRONMENT, modifiedEnvironment, secure_dir.c_str(), &si, &pi))
@@ -1132,9 +1134,15 @@ int InstallAddon(std::shared_ptr<SAddon> pAddon, const std::wstring& temp_dir, c
 		LocalFree(modifiedEnvironment);
 
 		if (ret >= 0 && !pAddon->UninstallKey.empty()) {
-			std::wstring cmd = ReadRegistryStringValue(pAddon->UninstallKey, L"UninstallString");
-			if (cmd.empty()) // when the expected uninstall key is not present,
-				ret = ERROR_BAD_ADDON2; // it means the installation failed
+			// Poll up to 90 s in case the installer itself spawns an async child process
+			std::wstring cmd;
+			for (int i = 0; i < 90; i++) {
+				cmd = ReadRegistryStringValue(pAddon->UninstallKey, L"UninstallString");
+				if (!cmd.empty()) break;
+				Sleep(1000);
+			}
+			if (cmd.empty())
+				ret = ERROR_BAD_ADDON2;
 		}
 
 		CloseSecureTemp(deleteOnCloseHandles, secure_base);
