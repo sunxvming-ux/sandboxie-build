@@ -1096,32 +1096,64 @@ int InstallAddon(std::shared_ptr<SAddon> pAddon, const std::wstring& temp_dir, c
 		for (LPWCH current = environmentStrings; *current; current += wcslen(current) + 1)
 			environmentLen += wcslen(current) + 1;
 
-		LPWCH modifiedEnvironment = (LPWCH)LocalAlloc(0, (environmentLen + 32 + base_dir.length() + 1 + 1) * sizeof(wchar_t));
+		// Build environment: SBIEHOME + IMDISK_SILENT_SETUP=1 (inherited by all child processes)
+		std::wstring sbiehome_val = std::wstring(L"SBIEHOME=") + base_dir;
+		const wchar_t* imdisk_env = L"IMDISK_SILENT_SETUP=1";
+		size_t extraEnv = sbiehome_val.length() + 1 + wcslen(imdisk_env) + 1 + 2;
+		LPWCH modifiedEnvironment = (LPWCH)LocalAlloc(0, (environmentLen + extraEnv) * sizeof(wchar_t));
 		memcpy(modifiedEnvironment, environmentStrings, (environmentLen + 1) * sizeof(wchar_t));
 
 		FreeEnvironmentStrings(environmentStrings);
 
 		LPWCH modifiedEnvironmentEnd = modifiedEnvironment + environmentLen;
-
-		wcscpy(modifiedEnvironmentEnd, L"SBIEHOME=");
-		wcscat(modifiedEnvironmentEnd, base_dir.c_str());
-		modifiedEnvironmentEnd += wcslen(modifiedEnvironmentEnd) + 1;
-
+		wcscpy(modifiedEnvironmentEnd, sbiehome_val.c_str());
+		modifiedEnvironmentEnd += sbiehome_val.length() + 1;
+		wcscpy(modifiedEnvironmentEnd, imdisk_env);
+		modifiedEnvironmentEnd += wcslen(imdisk_env) + 1;
 		*modifiedEnvironmentEnd = 0;
 
 		STARTUPINFO si = { sizeof(si), 0 };
 		PROCESS_INFORMATION pi = { 0 };
 		std::wstring installerPath = secure_dir + L"\\" + pAddon->Installer;
-		// .bat files cannot be launched directly by CreateProcessW; must go through cmd.exe.
-		// "7" skips the self-relaunch trick in ImDisk's install.bat (start /min detaches the real
-		// installer, causing UpdUtil to check the registry before it is written).
-		// "/fullsilent" is forwarded as %2 to config.exe so it installs without any GUI (required
-		// when running as SYSTEM in Session 0).
-		std::wstring cmdLine = (installerPath.size() >= 4 && _wcsicmp(installerPath.c_str() + installerPath.size() - 4, L".bat") == 0)
-			? (L"cmd.exe /c \"" + installerPath + L"\" 7 /fullsilent")
-			: installerPath;
-		// Set working directory to the installer's directory so relative paths (e.g. expand files.cab) resolve correctly
-		if (CreateProcessW(NULL, (wchar_t*)cmdLine.c_str(), NULL, NULL, FALSE, CREATE_UNICODE_ENVIRONMENT, modifiedEnvironment, secure_dir.c_str(), &si, &pi))
+		std::wstring workDir = secure_dir;
+		std::wstring cmdLine;
+
+		if (installerPath.size() >= 4 && _wcsicmp(installerPath.c_str() + installerPath.size() - 4, L".bat") == 0) {
+			// For .bat installers that bundle a files.cab: extract the cab ourselves and run
+			// config.exe directly with CWD = extracted dir.  This avoids the CWD mismatch caused
+			// by install.bat's self-relaunch trick and ensures config.exe can find driver\install.cmd
+			// via relative paths when running as SYSTEM (Session 0, no desktop).
+			std::wstring cabPath = secure_dir + L"\\files.cab";
+			std::wstring pkgDir  = secure_dir + L"\\pkg";
+			bool bUseDirect = false;
+
+			if (FileExists(cabPath.c_str())) {
+				CreateDirectoryW(pkgDir.c_str(), NULL);
+				std::wstring extractCmd = L"extrac32.exe /e /l \"" + pkgDir + L"\" \"" + cabPath + L"\"";
+				STARTUPINFO si2 = { sizeof(si2), 0 };
+				PROCESS_INFORMATION pi2 = { 0 };
+				if (CreateProcessW(NULL, (wchar_t*)extractCmd.c_str(), NULL, NULL, FALSE,
+					CREATE_UNICODE_ENVIRONMENT, modifiedEnvironment, secure_dir.c_str(), &si2, &pi2)) {
+					while (WaitForSingleObject(pi2.hProcess, 1000) == WAIT_TIMEOUT);
+					CloseHandle(pi2.hProcess);
+					CloseHandle(pi2.hThread);
+				}
+				bUseDirect = FileExists((pkgDir + L"\\config.exe").c_str());
+			}
+
+			if (bUseDirect) {
+				// Run config.exe /fullsilent with CWD = pkgDir so driver\install.cmd is found
+				cmdLine = L"\"" + pkgDir + L"\\config.exe\" /fullsilent";
+				workDir = pkgDir;
+			} else {
+				// Fallback: run install.bat synchronously with "7 /fullsilent"
+				cmdLine = L"cmd.exe /c \"" + installerPath + L"\" 7 /fullsilent";
+			}
+		} else {
+			cmdLine = installerPath;
+		}
+
+		if (CreateProcessW(NULL, (wchar_t*)cmdLine.c_str(), NULL, NULL, FALSE, CREATE_UNICODE_ENVIRONMENT, modifiedEnvironment, workDir.c_str(), &si, &pi))
 		{
 			DWORD exitCode = 0;
 			while (WaitForSingleObject(pi.hProcess, 1000) == WAIT_TIMEOUT);
