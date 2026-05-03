@@ -74,6 +74,19 @@ jobs:
         shell: cmd
         run: Installer\get_assets.cmd
 
+      - name: Bundle addons.json
+        shell: pwsh
+        run: |
+          try {
+            $r = Invoke-RestMethod -Uri "https://sandboxie-plus.com/update.php?action=update&software=sandboxie-plus&version=5.72.5&system=windows-10.0.22000-x64&language=en_US&channel=stable&auto=0" -TimeoutSec 30
+            if ($r.addons) {
+              $r.addons | ConvertTo-Json -Depth 20 | Set-Content "Installer\SbiePlus_x64\addons.json" -Encoding UTF8
+              Write-Output "addons.json bundled: $(($r.addons.list | Measure-Object).Count) addons"
+            }
+          } catch {
+            Write-Output "Could not fetch addons.json (offline?), skipping: $_"
+          }
+
       # ── Upload artifacts ─────────────────────────────────────────────────
 
       - name: Upload Sandboxie x64
