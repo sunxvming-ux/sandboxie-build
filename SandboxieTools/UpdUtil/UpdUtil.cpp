@@ -1113,10 +1113,12 @@ int InstallAddon(std::shared_ptr<SAddon> pAddon, const std::wstring& temp_dir, c
 		PROCESS_INFORMATION pi = { 0 };
 		std::wstring installerPath = secure_dir + L"\\" + pAddon->Installer;
 		// .bat files cannot be launched directly by CreateProcessW; must go through cmd.exe.
-		// Pass "7" to skip the self-relaunch trick in ImDisk's install.bat (start /min detaches
-		// the real installer, causing UpdUtil to check the registry before it is written).
+		// "7" skips the self-relaunch trick in ImDisk's install.bat (start /min detaches the real
+		// installer, causing UpdUtil to check the registry before it is written).
+		// "/fullsilent" is forwarded as %2 to config.exe so it installs without any GUI (required
+		// when running as SYSTEM in Session 0).
 		std::wstring cmdLine = (installerPath.size() >= 4 && _wcsicmp(installerPath.c_str() + installerPath.size() - 4, L".bat") == 0)
-			? (L"cmd.exe /c \"" + installerPath + L"\" 7")
+			? (L"cmd.exe /c \"" + installerPath + L"\" 7 /fullsilent")
 			: installerPath;
 		// Set working directory to the installer's directory so relative paths (e.g. expand files.cab) resolve correctly
 		if (CreateProcessW(NULL, (wchar_t*)cmdLine.c_str(), NULL, NULL, FALSE, CREATE_UNICODE_ENVIRONMENT, modifiedEnvironment, secure_dir.c_str(), &si, &pi))
