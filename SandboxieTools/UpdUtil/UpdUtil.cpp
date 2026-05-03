@@ -1111,7 +1111,11 @@ int InstallAddon(std::shared_ptr<SAddon> pAddon, const std::wstring& temp_dir, c
 
 		STARTUPINFO si = { sizeof(si), 0 };
 		PROCESS_INFORMATION pi = { 0 };
-		std::wstring cmdLine = secure_dir + L"\\" + pAddon->Installer;
+		std::wstring installerPath = secure_dir + L"\\" + pAddon->Installer;
+		// .bat files cannot be launched directly by CreateProcessW; must go through cmd.exe
+		std::wstring cmdLine = (installerPath.size() >= 4 && _wcsicmp(installerPath.c_str() + installerPath.size() - 4, L".bat") == 0)
+			? (L"cmd.exe /c \"" + installerPath + L"\"")
+			: installerPath;
 		if (CreateProcessW(NULL, (wchar_t*)cmdLine.c_str(), NULL, NULL, FALSE, CREATE_UNICODE_ENVIRONMENT, modifiedEnvironment, NULL, &si, &pi))
 		{
 			while (WaitForSingleObject(pi.hProcess, 1000) == WAIT_TIMEOUT);
