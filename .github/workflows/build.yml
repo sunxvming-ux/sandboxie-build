@@ -87,6 +87,19 @@ jobs:
             Write-Output "Could not fetch addons.json (offline?), skipping: $_"
           }
 
+      - name: Bundle ImDisk addon files
+        shell: pwsh
+        run: |
+          $addonDir = "Installer\SbiePlus_x64\addons\ImDisk"
+          New-Item -ItemType Directory -Force -Path $addonDir | Out-Null
+          try {
+            Invoke-WebRequest -Uri "https://sandboxie-plus.com/update/sandboxie-addons/ImDiskTk-x64/files.cab" -OutFile "$addonDir\files.cab" -TimeoutSec 60
+            Invoke-WebRequest -Uri "https://sandboxie-plus.com/update/sandboxie-addons/ImDiskTk-x64/install.bat" -OutFile "$addonDir\install.bat" -TimeoutSec 30
+            Write-Output "ImDisk bundled"
+          } catch {
+            Write-Output "Could not fetch ImDisk files: $_"
+          }
+
       # ── Upload artifacts ─────────────────────────────────────────────────
 
       - name: Upload Sandboxie x64
