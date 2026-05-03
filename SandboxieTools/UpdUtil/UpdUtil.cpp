@@ -1116,11 +1116,15 @@ int InstallAddon(std::shared_ptr<SAddon> pAddon, const std::wstring& temp_dir, c
 		std::wstring cmdLine = (installerPath.size() >= 4 && _wcsicmp(installerPath.c_str() + installerPath.size() - 4, L".bat") == 0)
 			? (L"cmd.exe /c \"" + installerPath + L"\"")
 			: installerPath;
-		if (CreateProcessW(NULL, (wchar_t*)cmdLine.c_str(), NULL, NULL, FALSE, CREATE_UNICODE_ENVIRONMENT, modifiedEnvironment, NULL, &si, &pi))
+		// Set working directory to the installer's directory so relative paths (e.g. expand files.cab) resolve correctly
+		if (CreateProcessW(NULL, (wchar_t*)cmdLine.c_str(), NULL, NULL, FALSE, CREATE_UNICODE_ENVIRONMENT, modifiedEnvironment, secure_dir.c_str(), &si, &pi))
 		{
+			DWORD exitCode = 0;
 			while (WaitForSingleObject(pi.hProcess, 1000) == WAIT_TIMEOUT);
+			GetExitCodeProcess(pi.hProcess, &exitCode);
 			CloseHandle(pi.hProcess);
 			CloseHandle(pi.hThread);
+			if (exitCode != 0) ret = ERROR_BAD_ADDON2;
 		}
 		else
 			ret = ERROR_BAD_ADDON2;
