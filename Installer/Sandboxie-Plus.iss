@@ -82,13 +82,23 @@ Source: ".\Release\{#MyAppSrc}\64\SbieDll.pdb"; DestDir: "{app}\64\"; MinVersion
 Source: ".\Sandboxie.ini"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist; Check: IsPortable
 Source: ".\Sandboxie-Plus.ini"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist; Check: IsPortable
 
+; ImDiskTK
+#if MyAppArch == "x64"
+Source: ".\imdisk_files.cab"; DestDir: "{app}"; Flags: ignoreversion
+Source: ".\imdisk_install.bat"; DestDir: "{app}"; Flags: ignoreversion
+#endif
+
+; Bundled addon list and addon files for offline installation
+Source: ".\addons.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: ".\addons\*"; DestDir: "{app}\addons"; Flags: recursesubdirs ignoreversion
+
 [Icons]
 Name: "{group}\Sandboxie-Plus"; Filename: "{app}\SandMan.exe"; MinVersion: 0.0,5.0
 Name: "{group}\{cm:ProgramOnTheWeb,{#MyAppName}}"; Filename: "http://sandboxie-plus.com/"; MinVersion: 0.0,5.0
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"; MinVersion: 0.0,5.0
-Name: "{group}\{cm:SandboxieStartMenu1}"; Filename: "{app}\SandMan.exe"; Parameters: "/box:__ask__ run_dialog"; MinVersion: 0.0,5.0
-Name: "{group}\{cm:SandboxieStartMenu2}"; Filename: "{app}\SandMan.exe"; Parameters: "default_browser"; MinVersion: 0.0,5.0
-Name: "{group}\{cm:SandboxieStartMenu3}"; Filename: "{app}\SandMan.exe"; Parameters: "/box:__ask__ start_menu"; MinVersion: 0.0,5.0
+Name: "{group}\{cm:SandboxieStartMenu1}"; Filename: "{app}\Start.exe"; Parameters: "/box:__ask__ run_dialog"; MinVersion: 0.0,5.0
+Name: "{group}\{cm:SandboxieStartMenu2}"; Filename: "{app}\Start.exe"; Parameters: "default_browser"; MinVersion: 0.0,5.0
+Name: "{group}\{cm:SandboxieStartMenu3}"; Filename: "{app}\Start.exe"; Parameters: "/box:__ask__ start_menu"; MinVersion: 0.0,5.0
 Name: "{userdesktop}\Sandboxie-Plus"; Filename: "{app}\SandMan.exe"; Tasks: DesktopIcon; MinVersion: 0.0,5.0
 ;Name: "{userdesktop}\{cm:SandboxedBrowser}"; Filename: "{app}\Start.exe"; Parameters: "default_browser"; Tasks: DesktopIcon2; MinVersion: 0.0,5.0
 
@@ -159,7 +169,7 @@ Filename: "{app}\UpdUtil.exe"; Parameters: {code:GetParams}; StatusMsg: "UpdUtil
 
 ; Install ImDisk 3.0 driver
 #if MyAppArch == "x64"
-Filename: "{app}\addons\ImDisk\install.bat"; Parameters: "7 /fullsilent"; WorkingDir: "{app}\addons\ImDisk"; StatusMsg: "Installing ImDisk 3.0 Driver..."; Check: IsInstallImDisk
+Filename: "{app}\imdisk_install.bat"; StatusMsg: "Installing ImDisk 3.0 Driver..."; Check: IsInstallImDisk
 #endif
 
 ; Start the Sbie service.
