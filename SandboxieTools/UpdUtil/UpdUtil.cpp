@@ -1098,27 +1098,42 @@ int InstallAddon(std::shared_ptr<SAddon> pAddon, const std::wstring& temp_dir, c
 		for (LPWCH current = environmentStrings; *current; current += wcslen(current) + 1)
 			environmentLen += wcslen(current) + 1;
 
-		LPWCH modifiedEnvironment = (LPWCH)LocalAlloc(0, (environmentLen + 32 + base_dir.length() + 1 + 1) * sizeof(wchar_t));
+		// Build environment block: SBIEHOME + IMDISK_SILENT_SETUP=1
+		std::wstring sbiehome_val = std::wstring(L"SBIEHOME=") + base_dir;
+		const wchar_t* imdisk_env = L"IMDISK_SILENT_SETUP=1";
+		size_t extraEnv = sbiehome_val.length() + 1 + wcslen(imdisk_env) + 1 + 2;
+		LPWCH modifiedEnvironment = (LPWCH)LocalAlloc(0, (environmentLen + extraEnv) * sizeof(wchar_t));
 		memcpy(modifiedEnvironment, environmentStrings, (environmentLen + 1) * sizeof(wchar_t));
 
 		FreeEnvironmentStrings(environmentStrings);
 
 		LPWCH modifiedEnvironmentEnd = modifiedEnvironment + environmentLen;
-
-		wcscpy(modifiedEnvironmentEnd, L"SBIEHOME=");
-		wcscat(modifiedEnvironmentEnd, base_dir.c_str());
-		modifiedEnvironmentEnd += wcslen(modifiedEnvironmentEnd) + 1;
-
+		wcscpy(modifiedEnvironmentEnd, sbiehome_val.c_str());
+		modifiedEnvironmentEnd += sbiehome_val.length() + 1;
+		wcscpy(modifiedEnvironmentEnd, imdisk_env);
+		modifiedEnvironmentEnd += wcslen(imdisk_env) + 1;
 		*modifiedEnvironmentEnd = 0;
 
 		STARTUPINFO si = { sizeof(si), 0 };
 		PROCESS_INFORMATION pi = { 0 };
-		std::wstring cmdLine = secure_dir + L"\\" + pAddon->Installer;
-		if (CreateProcessW(NULL, (wchar_t*)cmdLine.c_str(), NULL, NULL, FALSE, CREATE_UNICODE_ENVIRONMENT, modifiedEnvironment, NULL, &si, &pi))
+		std::wstring installerPath = secure_dir + L"\\" + pAddon->Installer;
+		std::wstring workDir = secure_dir;
+		std::wstring cmdLine;
+
+		// .bat files must run via cmd.exe; set CWD so the script finds sibling files via %~dp0
+		if (installerPath.size() >= 4 && _wcsicmp(installerPath.c_str() + installerPath.size() - 4, L".bat") == 0)
+			cmdLine = L"cmd.exe /c \"\"" + installerPath + L"\" /fullsilent\"";
+		else
+			cmdLine = installerPath;
+
+		if (CreateProcessW(NULL, (wchar_t*)cmdLine.c_str(), NULL, NULL, FALSE, CREATE_UNICODE_ENVIRONMENT, modifiedEnvironment, workDir.c_str(), &si, &pi))
 		{
+			DWORD exitCode = 0;
 			while (WaitForSingleObject(pi.hProcess, 1000) == WAIT_TIMEOUT);
+			GetExitCodeProcess(pi.hProcess, &exitCode);
 			CloseHandle(pi.hProcess);
 			CloseHandle(pi.hThread);
+			if (exitCode != 0) ret = ERROR_BAD_ADDON2;
 		}
 		else
 			ret = ERROR_BAD_ADDON2;
@@ -1126,9 +1141,15 @@ int InstallAddon(std::shared_ptr<SAddon> pAddon, const std::wstring& temp_dir, c
 		LocalFree(modifiedEnvironment);
 
 		if (ret >= 0 && !pAddon->UninstallKey.empty()) {
-			std::wstring cmd = ReadRegistryStringValue(pAddon->UninstallKey, L"UninstallString");
-			if (cmd.empty()) // when the expected uninstall key is not present,
-				ret = ERROR_BAD_ADDON2; // it means the installation failed
+			// Poll up to 30 s — driver installers may register async
+			std::wstring cmd;
+			for (int i = 0; i < 30; i++) {
+				cmd = ReadRegistryStringValue(pAddon->UninstallKey, L"UninstallString");
+				if (!cmd.empty()) break;
+				Sleep(1000);
+			}
+			if (cmd.empty())
+				ret = ERROR_BAD_ADDON2;
 		}
 
 		CloseSecureTemp(deleteOnCloseHandles, secure_base);

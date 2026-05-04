@@ -1,0 +1,19 @@
+{
+  "list": [
+    {
+      "id": "ImDisk",
+      "name": "ImDisk Toolkit",
+      "description": "Virtual disk driver required for Privacy Mode encrypted file containers.",
+      "version": "3.0",
+      "info_url": "https://sourceforge.net/projects/imdisk-toolkit/",
+      "default": false,
+      "installer": "\\imdisk_install.bat",
+      "uninstallKey": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\ImDisk",
+      "files-x64": [
+        { "path": "imdisk_install.bat", "hash": "57ec1d61fa7ed2565a767e4a493309691d286eadc9e19b645f13dfd2081a4f84", "url": "" },
+        { "path": "imdisk_files.cab",   "hash": "4e1e4a0fb45dba0c72b282381b8ab02f73c8e441aa96190574dbbe541939fa42", "url": "" }
+      ],
+      "files-x64-sig": ""
+    }
+  ]
+}
