@@ -131,7 +131,10 @@ jobs:
           Copy-Item "Installer\SbiePlus_x64" $installerSrc -Recurse -Force
 
           $script = "Installer\Sandboxie-Plus-ci.iss"
-          (Get-Content "Installer\Languages.iss") -replace '^Name: "indonesian";.*$', '; Indonesian language file is not shipped with the GitHub Actions Inno Setup package.' | Set-Content "Installer\Languages-ci.iss" -Encoding UTF8
+          (Get-Content "Installer\Languages.iss") `
+            -replace '^Name: "indonesian";.*$', '; Indonesian language file is not shipped with the GitHub Actions Inno Setup package.' `
+            -replace '^indonesian\.', ';indonesian.' |
+            Set-Content "Installer\Languages-ci.iss" -Encoding UTF8
           (Get-Content "Installer\Sandboxie-Plus.iss") `
             -replace '#include "Languages\.iss"', '#include "Languages-ci.iss"' `
             -replace '^SignTool=sha256$', ';SignTool=sha256' |
