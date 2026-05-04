@@ -90,10 +90,7 @@ Source: ".\imdisk_install.bat"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Bundled addon list and addon files for offline installation
 Source: ".\addons.json"; DestDir: "{app}"; Flags: ignoreversion
-#if MyAppArch == "x64"
-Source: ".\addons\ImDisk\imdisk_install.bat"; DestDir: "{app}\addons\ImDisk"; Flags: ignoreversion
-Source: ".\addons\ImDisk\imdisk_files.cab"; DestDir: "{app}\addons\ImDisk"; Flags: ignoreversion
-#endif
+Source: ".\addons\*"; DestDir: "{app}\addons"; Flags: recursesubdirs ignoreversion
 
 [Icons]
 Name: "{group}\Sandboxie-Plus"; Filename: "{app}\SandMan.exe"; MinVersion: 0.0,5.0

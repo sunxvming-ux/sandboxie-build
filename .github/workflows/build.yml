@@ -74,31 +74,42 @@ jobs:
         shell: cmd
         run: Installer\get_assets.cmd
 
-      - name: Bundle addons.json
+      - name: Bundle add-ons for offline use
         shell: pwsh
         run: |
-          try {
-            $r = Invoke-RestMethod -Uri "https://sandboxie-plus.com/update.php?action=update&software=sandboxie-plus&version=5.72.5&system=windows-10.0.22000-x64&language=en_US&channel=stable&auto=0" -TimeoutSec 30
-            if ($r.addons) {
-              $r.addons | ConvertTo-Json -Depth 20 | Set-Content "Installer\SbiePlus_x64\addons.json" -Encoding UTF8
-              Write-Output "addons.json bundled: $(($r.addons.list | Measure-Object).Count) addons"
+          $updateUrl = "https://sandboxie-plus.com/update.php?action=update&software=sandboxie-plus&version=5.72.5&system=windows-10.0.22000-x64&language=en_US&channel=stable&auto=0"
+          $root = "Installer\SbiePlus_x64"
+          $addonsRoot = Join-Path $root "addons"
+          $r = Invoke-RestMethod -Uri $updateUrl -TimeoutSec 30
+          if (-not $r.addons) { throw "No add-on metadata returned" }
+
+          New-Item -ItemType Directory -Force -Path $addonsRoot | Out-Null
+          $r.addons | ConvertTo-Json -Depth 20 | Set-Content (Join-Path $root "addons.json") -Encoding UTF8
+
+          $downloaded = 0
+          foreach ($addon in @($r.addons.list)) {
+            $addonId = $addon.id
+            if (-not $addonId) { continue }
+
+            $fileProps = @($addon.PSObject.Properties | Where-Object {
+              $_.Name -match '^files($|-)' -and $_.Name -notmatch '-sig$'
+            })
+            $selected = @($fileProps | Where-Object { $_.Name -like 'files-qt*_x64' })
+            if (-not $selected) { $selected = @($fileProps | Where-Object { $_.Name -eq 'files-x64' }) }
+            if (-not $selected) { $selected = @($fileProps | Where-Object { $_.Name -eq 'files' }) }
+            if (-not $selected) { continue }
+
+            foreach ($file in @($selected[0].Value)) {
+              if (-not $file.path -or -not $file.url) { continue }
+              $outFile = Join-Path (Join-Path $addonsRoot $addonId) ($file.path -replace '/', '\')
+              New-Item -ItemType Directory -Force -Path (Split-Path $outFile) | Out-Null
+              Invoke-WebRequest -Uri $file.url -OutFile $outFile -TimeoutSec 60
+              $downloaded++
             }
-          } catch {
-            Write-Output "Could not fetch addons.json (offline?), skipping: $_"
           }
 
-      - name: Bundle ImDisk addon files
-        shell: pwsh
-        run: |
-          $addonDir = "Installer\SbiePlus_x64\addons\ImDisk"
-          New-Item -ItemType Directory -Force -Path $addonDir | Out-Null
-          try {
-            Invoke-WebRequest -Uri "https://sandboxie-plus.com/update/sandboxie-addons/ImDiskTk-x64/files.cab" -OutFile "$addonDir\files.cab" -TimeoutSec 60
-            Invoke-WebRequest -Uri "https://sandboxie-plus.com/update/sandboxie-addons/ImDiskTk-x64/install.bat" -OutFile "$addonDir\install.bat" -TimeoutSec 30
-            Write-Output "ImDisk bundled"
-          } catch {
-            Write-Output "Could not fetch ImDisk files: $_"
-          }
+          Write-Output "addons.json bundled: $(($r.addons.list | Measure-Object).Count) add-ons"
+          Write-Output "Add-on files bundled: $downloaded"
 
       # ── Upload artifacts ─────────────────────────────────────────────────
 

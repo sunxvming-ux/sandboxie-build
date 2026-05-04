@@ -7,6 +7,7 @@
 #include <QUrlQuery>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QDirIterator>
 #include "../QSbieAPI/Sandboxie/SbieTemplates.h"
 #include <QtConcurrent>
 #include "../../SandboxieTools/UpdUtil/UpdUtil.h"
@@ -22,6 +23,15 @@ CAddonManager::CAddonManager(QObject* parent)
 
 void CAddonManager::UpdateAddonsWhenNotCached()
 {
+	if (QFile::exists(QApplication::applicationDirPath() + "/" ADDONS_FILE)) {
+		if (m_KnownAddons.isEmpty()) {
+			if (LoadAddons())
+				emit DataUpdated();
+		}
+		if (!m_KnownAddons.isEmpty())
+			return;
+	}
+
 	QVariantMap Data = theGUI->m_pUpdater->GetUpdateData();
 	if (!Data.isEmpty() && Data.contains("addons") && theGUI->m_pUpdater->GetLastUpdateTime() > QDateTime::currentDateTime().addDays(-1)) {
 		OnUpdateData(Data, QVariantMap());
@@ -188,20 +198,31 @@ SB_PROGRESS CAddonManager::InstallAddon(const QString& Id)
 	if (!pAddon)
 		return SB_ERR(SB_OtherError, QVariantList() << tr("Add-on not found, please try updating the add-on list in the global settings!"));
 
-	// Use user-cached addons.json if present, otherwise fall back to bundled copy
-	QString srcAddons = theConf->GetConfigDir() + "/" ADDONS_FILE;
+	QString bundledAddonDir = QApplication::applicationDirPath() + "/addons/" + pAddon->Id;
+	QString bundledAddons = QApplication::applicationDirPath() + "/" ADDONS_FILE;
+
+	// Prefer matching bundled metadata when bundled addon files are available.
+	QString srcAddons = QDir(bundledAddonDir).exists() && QFile::exists(bundledAddons)
+		? bundledAddons : theConf->GetConfigDir() + "/" ADDONS_FILE;
 	if (!QFile::exists(srcAddons))
-		srcAddons = QApplication::applicationDirPath() + "/" ADDONS_FILE;
+		srcAddons = bundledAddons;
 	QFile::remove(theGUI->m_pUpdater->GetUpdateDir(true) + "/" ADDONS_FILE);
 	QFile::copy(srcAddons, theGUI->m_pUpdater->GetUpdateDir(true) + "/" ADDONS_FILE);
 
-	// Pre-copy bundled addon files so DownloadUpdate skips network fetch
-	QString bundledAddonDir = QApplication::applicationDirPath() + "/addons/" + pAddon->Id;
+	// Pre-copy bundled addon files so DownloadUpdate skips network fetch.
 	if (QDir(bundledAddonDir).exists()) {
 		QString destDir = theGUI->m_pUpdater->GetUpdateDir(true) + "/" + pAddon->Id;
 		QDir().mkpath(destDir);
-		foreach (const QFileInfo& fi, QDir(bundledAddonDir).entryInfoList(QDir::Files))
-			QFile::copy(fi.absoluteFilePath(), destDir + "/" + fi.fileName());
+		QDir srcDir(bundledAddonDir);
+		QDirIterator it(bundledAddonDir, QDir::Files, QDirIterator::Subdirectories);
+		while (it.hasNext()) {
+			it.next();
+			QString relPath = srcDir.relativeFilePath(it.filePath());
+			QString destPath = destDir + "/" + relPath;
+			QDir().mkpath(QFileInfo(destPath).absolutePath());
+			QFile::remove(destPath);
+			QFile::copy(it.filePath(), destPath);
+		}
 	}
 
 	QStringList Params;
