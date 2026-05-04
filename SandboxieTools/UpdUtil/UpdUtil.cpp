@@ -1098,7 +1098,7 @@ int InstallAddon(std::shared_ptr<SAddon> pAddon, const std::wstring& temp_dir, c
 		for (LPWCH current = environmentStrings; *current; current += wcslen(current) + 1)
 			environmentLen += wcslen(current) + 1;
 
-		// Build environment block: SBIEHOME + IMDISK_SILENT_SETUP=1
+		// Build environment: SBIEHOME + IMDISK_SILENT_SETUP=1 (inherited by all child processes)
 		std::wstring sbiehome_val = std::wstring(L"SBIEHOME=") + base_dir;
 		const wchar_t* imdisk_env = L"IMDISK_SILENT_SETUP=1";
 		size_t extraEnv = sbiehome_val.length() + 1 + wcslen(imdisk_env) + 1 + 2;
@@ -1120,11 +1120,41 @@ int InstallAddon(std::shared_ptr<SAddon> pAddon, const std::wstring& temp_dir, c
 		std::wstring workDir = secure_dir;
 		std::wstring cmdLine;
 
-		// .bat files must run via cmd.exe; set CWD so the script finds sibling files via %~dp0
-		if (installerPath.size() >= 4 && _wcsicmp(installerPath.c_str() + installerPath.size() - 4, L".bat") == 0)
-			cmdLine = L"cmd.exe /c \"\"" + installerPath + L"\" /fullsilent\"";
-		else
+		if (installerPath.size() >= 4 && _wcsicmp(installerPath.c_str() + installerPath.size() - 4, L".bat") == 0) {
+			// For .bat installers that bundle a cab: extract it ourselves and run
+			// config.exe directly with CWD = extracted dir. This avoids install.bat's
+			// self-relaunch path issues when running headless as SYSTEM.
+			std::wstring cabPath = secure_dir + L"\\files.cab";
+			if (!FileExists(cabPath.c_str()))
+				cabPath = secure_dir + L"\\imdisk_files.cab";
+			std::wstring pkgDir = secure_dir + L"\\pkg";
+			bool bUseDirect = false;
+
+			if (FileExists(cabPath.c_str())) {
+				CreateDirectoryW(pkgDir.c_str(), NULL);
+				std::wstring extractCmd = L"extrac32.exe /e /l \"" + pkgDir + L"\" \"" + cabPath + L"\"";
+				STARTUPINFO si2 = { sizeof(si2), 0 };
+				PROCESS_INFORMATION pi2 = { 0 };
+				if (CreateProcessW(NULL, (wchar_t*)extractCmd.c_str(), NULL, NULL, FALSE,
+					CREATE_UNICODE_ENVIRONMENT, modifiedEnvironment, secure_dir.c_str(), &si2, &pi2)) {
+					while (WaitForSingleObject(pi2.hProcess, 1000) == WAIT_TIMEOUT);
+					CloseHandle(pi2.hProcess);
+					CloseHandle(pi2.hThread);
+				}
+				bUseDirect = FileExists((pkgDir + L"\\config.exe").c_str());
+			}
+
+			if (bUseDirect) {
+				// Run config.exe /fullsilent with CWD = pkgDir so driver\install.cmd is found.
+				cmdLine = L"\"" + pkgDir + L"\\config.exe\" /fullsilent";
+				workDir = pkgDir;
+			} else {
+				// Fallback: run install.bat synchronously with "7 /fullsilent".
+				cmdLine = L"cmd.exe /c \"" + installerPath + L"\" 7 /fullsilent";
+			}
+		} else {
 			cmdLine = installerPath;
+		}
 
 		if (CreateProcessW(NULL, (wchar_t*)cmdLine.c_str(), NULL, NULL, FALSE, CREATE_UNICODE_ENVIRONMENT, modifiedEnvironment, workDir.c_str(), &si, &pi))
 		{
@@ -1141,9 +1171,9 @@ int InstallAddon(std::shared_ptr<SAddon> pAddon, const std::wstring& temp_dir, c
 		LocalFree(modifiedEnvironment);
 
 		if (ret >= 0 && !pAddon->UninstallKey.empty()) {
-			// Poll up to 30 s — driver installers may register async
+			// Poll up to 90 s in case the installer itself spawns an async child process
 			std::wstring cmd;
-			for (int i = 0; i < 30; i++) {
+			for (int i = 0; i < 90; i++) {
 				cmd = ReadRegistryStringValue(pAddon->UninstallKey, L"UninstallString");
 				if (!cmd.empty()) break;
 				Sleep(1000);

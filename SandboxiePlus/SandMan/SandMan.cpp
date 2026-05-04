@@ -2883,6 +2883,9 @@ void CSandMan::OnStatusChanged()
 		else if(Status.GetStatus() != 0xc0000225 /*STATUS_NOT_FOUND*/)
 			SetCertificate(""); // always delete invalid certificates
 
+		// Ensure addon list is cached so ImDisk and other addons can be installed.
+		GetAddonManager()->UpdateAddonsWhenNotCached();
+
 		uchar UsageFlags = 0;
 		if (theAPI->GetSecureParam("UsageFlags", &UsageFlags, sizeof(UsageFlags))) {
 			if (!CERT_IS_TYPE(g_CertInfo, eCertBusiness)) {
