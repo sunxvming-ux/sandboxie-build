@@ -866,6 +866,31 @@ _FX WCHAR *SbieDll_FormatMessage(ULONG code, const WCHAR **ins)
             }
         }
 
+        if (! SbieMsgDll) {
+            WCHAR path[MAX_PATH + 64];
+            WCHAR *ptr;
+
+            if (GetModuleFileName(Dll_Instance, path, MAX_PATH)) {
+                ptr = wcsrchr(path, L'\\');
+                if (ptr) {
+                    ptr[1] = L'\0';
+                    wcscat(path, SBIEMSG_DLL);
+                    SbieMsgDll =
+                        LoadLibraryEx(path, NULL, LOAD_LIBRARY_AS_DATAFILE);
+                }
+            }
+
+            if (! SbieMsgDll && GetModuleFileName(NULL, path, MAX_PATH)) {
+                ptr = wcsrchr(path, L'\\');
+                if (ptr) {
+                    ptr[1] = L'\0';
+                    wcscat(path, SBIEMSG_DLL);
+                    SbieMsgDll =
+                        LoadLibraryEx(path, NULL, LOAD_LIBRARY_AS_DATAFILE);
+                }
+            }
+        }
+
 #else
 
         SBIEDLL_GET_SBIE_MSG_DLL
