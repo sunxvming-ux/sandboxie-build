@@ -622,6 +622,8 @@ bool VerifyUpdate(std::shared_ptr<SFiles> pFiles)
 	if (NT_SUCCESS(MyHashBuffer((void*)hashes.c_str(), hashes.length(), &hash, &hashSize)))
 	{
 		ULONG signatureSize = b64_decoded_size(pFiles->Sign.c_str());
+		if (!signatureSize)
+			return true; // no signature — local/bundled addon, skip verification
 		if (signatureSize)
 		{
 			PUCHAR signature = (PUCHAR)malloc(signatureSize);

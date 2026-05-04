@@ -43,8 +43,8 @@ void CAddonManager::UpdateAddons()
 
 void CAddonManager::OnUpdateData(const QVariantMap& Data, const QVariantMap& Params)
 {
-    if (Data.isEmpty() || Data["error"].toBool())
-        return;
+	if (Data.isEmpty() || !Data.contains("addons"))
+		return;
 
     QVariantMap Addons = Data["addons"].toMap();
 
@@ -103,6 +103,10 @@ bool CAddonManager::LoadAddons()
 
 	QString AddonPath = theConf->GetConfigDir() + "/" ADDONS_FILE;
 	QString AddonStr = ReadFileAsString(AddonPath);
+
+	if (AddonStr.isEmpty())
+		AddonStr = ReadFileAsString(QApplication::applicationDirPath() + "/" ADDONS_FILE);
+
 	QVariantMap Data = QJsonDocument::fromJson(AddonStr.toUtf8()).toVariant().toMap();
 	foreach(const QVariant vAddon, Data["list"].toList())
 		m_KnownAddons.append(CAddonPtr(new CAddon(vAddon.toMap())));
@@ -184,8 +188,21 @@ SB_PROGRESS CAddonManager::InstallAddon(const QString& Id)
 	if (!pAddon)
 		return SB_ERR(SB_OtherError, QVariantList() << tr("Add-on not found, please try updating the add-on list in the global settings!"));
 
+	// Use user-cached addons.json if present, otherwise fall back to bundled copy
+	QString srcAddons = theConf->GetConfigDir() + "/" ADDONS_FILE;
+	if (!QFile::exists(srcAddons))
+		srcAddons = QApplication::applicationDirPath() + "/" ADDONS_FILE;
 	QFile::remove(theGUI->m_pUpdater->GetUpdateDir(true) + "/" ADDONS_FILE);
-	QFile::copy(theConf->GetConfigDir() + "/" ADDONS_FILE, theGUI->m_pUpdater->GetUpdateDir(true) + "/" ADDONS_FILE);
+	QFile::copy(srcAddons, theGUI->m_pUpdater->GetUpdateDir(true) + "/" ADDONS_FILE);
+
+	// Pre-copy bundled addon files so DownloadUpdate skips network fetch
+	QString bundledAddonDir = QApplication::applicationDirPath() + "/addons/" + pAddon->Id;
+	if (QDir(bundledAddonDir).exists()) {
+		QString destDir = theGUI->m_pUpdater->GetUpdateDir(true) + "/" + pAddon->Id;
+		QDir().mkpath(destDir);
+		foreach (const QFileInfo& fi, QDir(bundledAddonDir).entryInfoList(QDir::Files))
+			QFile::copy(fi.absoluteFilePath(), destDir + "/" + fi.fileName());
+	}
 
 	QStringList Params;
 	Params.append("modify");
