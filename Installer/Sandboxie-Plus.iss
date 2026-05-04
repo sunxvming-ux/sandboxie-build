@@ -82,16 +82,6 @@ Source: ".\Release\{#MyAppSrc}\64\SbieDll.pdb"; DestDir: "{app}\64\"; MinVersion
 Source: ".\Sandboxie.ini"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist; Check: IsPortable
 Source: ".\Sandboxie-Plus.ini"; DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist; Check: IsPortable
 
-; ImDiskTK
-#if MyAppArch == "x64"
-Source: ".\imdisk_files.cab"; DestDir: "{app}"; Flags: ignoreversion
-Source: ".\imdisk_install.bat"; DestDir: "{app}"; Flags: ignoreversion
-#endif
-
-; Bundled addon list and addon files for offline installation
-Source: ".\addons.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: ".\addons\*"; DestDir: "{app}\addons"; Flags: recursesubdirs ignoreversion
-
 [Icons]
 Name: "{group}\Sandboxie-Plus"; Filename: "{app}\SandMan.exe"; MinVersion: 0.0,5.0
 Name: "{group}\{cm:ProgramOnTheWeb,{#MyAppName}}"; Filename: "http://sandboxie-plus.com/"; MinVersion: 0.0,5.0
@@ -169,7 +159,7 @@ Filename: "{app}\UpdUtil.exe"; Parameters: {code:GetParams}; StatusMsg: "UpdUtil
 
 ; Install ImDisk 3.0 driver
 #if MyAppArch == "x64"
-Filename: "{app}\imdisk_install.bat"; StatusMsg: "Installing ImDisk 3.0 Driver..."; Check: IsInstallImDisk
+Filename: "{app}\addons\ImDisk\install.bat"; Parameters: "7 /fullsilent"; WorkingDir: "{app}\addons\ImDisk"; StatusMsg: "Installing ImDisk 3.0 Driver..."; Check: IsInstallImDisk
 #endif
 
 ; Start the Sbie service.
