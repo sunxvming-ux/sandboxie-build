@@ -86,9 +86,9 @@ Source: ".\Sandboxie-Plus.ini"; DestDir: "{app}"; Flags: ignoreversion onlyifdoe
 Name: "{group}\Sandboxie-Plus"; Filename: "{app}\SandMan.exe"; MinVersion: 0.0,5.0
 Name: "{group}\{cm:ProgramOnTheWeb,{#MyAppName}}"; Filename: "http://sandboxie-plus.com/"; MinVersion: 0.0,5.0
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"; MinVersion: 0.0,5.0
-Name: "{group}\{cm:SandboxieStartMenu1}"; Filename: "{app}\Start.exe"; Parameters: "/box:__ask__ run_dialog"; MinVersion: 0.0,5.0
-Name: "{group}\{cm:SandboxieStartMenu2}"; Filename: "{app}\Start.exe"; Parameters: "default_browser"; MinVersion: 0.0,5.0
-Name: "{group}\{cm:SandboxieStartMenu3}"; Filename: "{app}\Start.exe"; Parameters: "/box:__ask__ start_menu"; MinVersion: 0.0,5.0
+Name: "{group}\{cm:SandboxieStartMenu1}"; Filename: "{app}\SandMan.exe"; Parameters: "/box:__ask__ run_dialog"; MinVersion: 0.0,5.0
+Name: "{group}\{cm:SandboxieStartMenu2}"; Filename: "{app}\SandMan.exe"; Parameters: "default_browser"; MinVersion: 0.0,5.0
+Name: "{group}\{cm:SandboxieStartMenu3}"; Filename: "{app}\SandMan.exe"; Parameters: "/box:__ask__ start_menu"; MinVersion: 0.0,5.0
 Name: "{userdesktop}\Sandboxie-Plus"; Filename: "{app}\SandMan.exe"; Tasks: DesktopIcon; MinVersion: 0.0,5.0
 ;Name: "{userdesktop}\{cm:SandboxedBrowser}"; Filename: "{app}\Start.exe"; Parameters: "default_browser"; Tasks: DesktopIcon2; MinVersion: 0.0,5.0
 
